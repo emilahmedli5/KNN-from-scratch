@@ -1,8 +1,23 @@
 import time
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
+
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler
 
 from src.knn import KNN
+from src.metrics import accuracy, precision, recall, f1_score, roc_auc
+from src.splits import stratified_kfold
+
+np.random.seed(42)
+
+# Always resolve figures/ relative to the project root (parent of src/),
+# regardless of which directory the notebook or script is run from.
+FIGURES_DIR = Path(__file__).resolve().parent.parent / "figures"
+FIGURES_DIR.mkdir(exist_ok=True)
 
 
 def run_computational_benchmark(
@@ -66,26 +81,10 @@ def run_computational_benchmark(
     plt.legend()
     plt.grid(True, which="both", linestyle="--", alpha=0.5)
 
-    plt.savefig("../figures/benchmark_2_5.pdf", dpi=300, bbox_inches="tight")
+    plt.savefig(FIGURES_DIR / "benchmark_2_5.pdf", dpi=300, bbox_inches="tight")
     plt.show()
 
     return n_values, times
-
-
-
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-from src.knn import KNN
-from src.metrics import (
-    accuracy,
-    precision,
-    recall,
-    f1_score_metric,
-    roc_auc
-)
 
 
 def run_hyperparameter_sweep(
@@ -110,21 +109,21 @@ def run_hyperparameter_sweep(
         model.fit(X_train, y_train)
 
         y_train_pred = model.predict(X_train)
-        y_train_prob = model.predict_proba(X_train)
+        y_train_prob = model.predict_proba(X_train)[:, 1]  # positive-class column
 
         y_val_pred = model.predict(X_val)
-        y_val_prob = model.predict_proba(X_val)
+        y_val_prob = model.predict_proba(X_val)[:, 1]      # positive-class column
 
         train_scores["Accuracy"].append(accuracy(y_train, y_train_pred))
         train_scores["Precision"].append(precision(y_train, y_train_pred))
         train_scores["Recall"].append(recall(y_train, y_train_pred))
-        train_scores["F1"].append(f1_score_metric(y_train, y_train_pred))
+        train_scores["F1"].append(f1_score(y_train, y_train_pred))
         train_scores["AUC-ROC"].append(roc_auc(y_train, y_train_prob))
 
         val_scores["Accuracy"].append(accuracy(y_val, y_val_pred))
         val_scores["Precision"].append(precision(y_val, y_val_pred))
         val_scores["Recall"].append(recall(y_val, y_val_pred))
-        val_scores["F1"].append(f1_score_metric(y_val, y_val_pred))
+        val_scores["F1"].append(f1_score(y_val, y_val_pred))
         val_scores["AUC-ROC"].append(roc_auc(y_val, y_val_prob))
 
     best_k = k_values[np.argmax(val_scores["F1"])]
@@ -155,19 +154,10 @@ def run_hyperparameter_sweep(
         ax.grid(True, which="both", linestyle="--", alpha=0.5)
 
     plt.tight_layout()
-    plt.savefig("figures/sweep_3_3.pdf", dpi=300, bbox_inches="tight")
+    plt.savefig(FIGURES_DIR / "sweep_3_3.pdf", dpi=300, bbox_inches="tight")
     plt.show()
 
     return best_k
-
-
-
-import numpy as np
-import pandas as pd
-
-from sklearn.neighbors import KNeighborsClassifier
-from src.knn import KNN
-from src.metrics import accuracy, precision, recall, f1_score_metric, roc_auc
 
 
 def evaluate_baselines(
@@ -185,7 +175,7 @@ def evaluate_baselines(
     custom.fit(X_train, y_train)
 
     y_pred_custom = custom.predict(X_val)
-    y_prob_custom = custom.predict_proba(X_val)
+    y_prob_custom = custom.predict_proba(X_val)[:, 1]  # positive-class column
 
     sk = KNeighborsClassifier(n_neighbors=best_k)
     sk.fit(X_train, y_train)
@@ -223,9 +213,9 @@ def evaluate_baselines(
             recall(y_val, y_pred_major)
         ],
         "F1 Score": [
-            f1_score_metric(y_val, y_pred_custom),
-            f1_score_metric(y_val, y_pred_sk),
-            f1_score_metric(y_val, y_pred_major)
+            f1_score(y_val, y_pred_custom),
+            f1_score(y_val, y_pred_sk),
+            f1_score(y_val, y_pred_major)
         ],
         "AUC-ROC": [
             roc_auc(y_val, y_prob_custom),
@@ -235,14 +225,6 @@ def evaluate_baselines(
     }
 
     return pd.DataFrame(results).set_index("Model")
-
-
-
-import numpy as np
-import pandas as pd
-
-from src.knn import KNN
-from src.metrics import accuracy, precision, recall, f1_score_metric, roc_auc
 
 
 def evaluate_test_set(
@@ -260,7 +242,7 @@ def evaluate_test_set(
     model.fit(X_train, y_train)
 
     y_pred = model.predict(X_test)
-    y_prob = model.predict_proba(X_test)
+    y_prob = model.predict_proba(X_test)[:, 1]  # positive-class column
 
     results = {
         "Metric": [
@@ -274,21 +256,12 @@ def evaluate_test_set(
             accuracy(y_test, y_pred),
             precision(y_test, y_pred),
             recall(y_test, y_pred),
-            f1_score_metric(y_test, y_pred),
+            f1_score(y_test, y_pred),
             roc_auc(y_test, y_prob)
         ]
     }
 
     return pd.DataFrame(results).set_index("Metric")
-
-
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-from src.knn import KNN
-from src.metrics import f1_score_metric
-from src.splits import stratified_kfold
 
 
 def run_cross_validation_sweep(
@@ -324,7 +297,7 @@ def run_cross_validation_sweep(
 
             y_pred = model.predict(X_val_f)
 
-            score = f1_score_metric(y_val_f, y_pred)
+            score = f1_score(y_val_f, y_pred)
             fold_scores.append(score)
 
         mean_scores.append(np.mean(fold_scores))
@@ -369,52 +342,46 @@ def run_cross_validation_sweep(
     plt.legend()
     plt.grid(True, which="both", linestyle="--", alpha=0.5)
 
-    plt.savefig(
-        "figures/cv_4_2.pdf",
-        dpi=300,
-        bbox_inches="tight"
-    )
+    plt.savefig(FIGURES_DIR / "cv_4_2.pdf", dpi=300, bbox_inches="tight")
 
     plt.show()
 
     return best_k, mean_scores[best_idx]
 
 
-
-
-import numpy as np
-from sklearn.preprocessing import StandardScaler
-from src.splits import stratified_kfold
-from src.knn import KNN
-from src.metrics import f1_score_metric
-
-def run_scaling_experiment(X_dev: np.ndarray, y_dev: np.ndarray, best_k: int, n_splits: int = 5):
+def run_scaling_experiment(
+    X_dev: np.ndarray,
+    y_dev: np.ndarray,
+    best_k: int,
+    n_splits: int = 5
+):
     """
     Reruns the cross-validation for the best k using standard scaling.
     Ensures no data leakage by fitting the scaler only on the training folds.
     """
+
     # Generate the exact same folds for a fair comparison
     folds = stratified_kfold(X_dev, y_dev, n_splits=n_splits, random_state=42)
-    
+
     scaled_f1_scores = []
-    
+
     for X_tr_f, y_tr_f, X_val_f, y_val_f in folds:
         # 1. Initialize a fresh scaler for this fold
         scaler = StandardScaler()
-        
+
         # 2. Fit strictly on the training fold, and transform it
         X_tr_scaled = scaler.fit_transform(X_tr_f)
-        
+
         # 3. Transform the validation fold using the training fold's parameters
         X_val_scaled = scaler.transform(X_val_f)
-        
+
         # 4. Train and predict
         knn = KNN(k=best_k)
         knn.fit(X_tr_scaled, y_tr_f)
         y_val_pred = knn.predict(X_val_scaled)
-        
+
         # 5. Record the score
-        scaled_f1_scores.append(f1_score_metric(y_val_f, y_val_pred))
-        
+        scaled_f1_scores.append(f1_score(y_val_f, y_val_pred))
+
     mean_scaled_f1 = np.mean(scaled_f1_scores)
     return mean_scaled_f1

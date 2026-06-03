@@ -54,7 +54,7 @@ def recall(y_true, y_pred, positive_label=1):
     return true_positive / actual_positive
 
 
-def f1_score_metric(y_true, y_pred, positive_label=1):
+def f1_score(y_true, y_pred, positive_label=1):
     precision_value = precision(y_true, y_pred, positive_label)
     recall_value = recall(y_true, y_pred, positive_label)
 
@@ -128,14 +128,13 @@ def roc_auc(y_true, y_score):
     return auc
 
 
-# Example
+if __name__ == "__main__":
+    y_true = [1, 0, 1, 1, 0, 1]
+    y_pred = [1, 0, 1, 0, 0, 1]
+    y_score = [0.90, 0.20, 0.80, 0.40, 0.30, 0.70]
 
-y_true = [1, 0, 1, 1, 0, 1]
-y_pred = [1, 0, 1, 0, 0, 1]
-y_score = [0.90, 0.20, 0.80, 0.40, 0.30, 0.70]
-
-print("Accuracy :", accuracy(y_true, y_pred))
-print("Precision:", precision(y_true, y_pred))
-print("Recall   :", recall(y_true, y_pred))
-print("F1 Score :", f1_score_metric(y_true, y_pred))
-print("ROC AUC  :", roc_auc(y_true, y_score))
+    print("Accuracy :", accuracy(y_true, y_pred))
+    print("Precision:", precision(y_true, y_pred))
+    print("Recall   :", recall(y_true, y_pred))
+    print("F1 Score :", f1_score(y_true, y_pred))
+    print("ROC AUC  :", roc_auc(y_true, y_score))

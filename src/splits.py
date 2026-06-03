@@ -4,16 +4,21 @@ import numpy as np
 def stratified_split(
     X: np.ndarray,
     y: np.ndarray,
-    test_size: float = 0.15,
-    val_size: float = 0.15,
-    random_state: int = 42
+    train_frac: float = 0.60,
+    val_frac: float = 0.20,
+    test_frac: float = 0.20,
+    seed: int = 42
 ):
     """
     Split dataset into train / validation / test
     while keeping class distribution roughly the same.
+
+    Returns
+    -------
+    X_train, X_val, X_test, y_train, y_val, y_test
     """
 
-    rng = np.random.default_rng(random_state)
+    rng = np.random.default_rng(seed)
 
     classes = np.unique(y)
 
@@ -30,8 +35,8 @@ def stratified_split(
 
         n = len(idx)
 
-        n_test = int(np.round(n * test_size))
-        n_val = int(np.round(n * val_size))
+        n_test = int(np.round(n * test_frac))
+        n_val = int(np.round(n * val_frac))
 
         test_part = idx[:n_test]
         val_part = idx[n_test:n_test + n_val]
@@ -51,15 +56,9 @@ def stratified_split(
     rng.shuffle(test_idx)
 
     return (
-        X[train_idx], y[train_idx],
-        X[val_idx], y[val_idx],
-        X[test_idx], y[test_idx]
+        X[train_idx], X[val_idx], X[test_idx],
+        y[train_idx], y[val_idx], y[test_idx]
     )
-
-
-
-
-import numpy as np
 
 
 def stratified_kfold(
