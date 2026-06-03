@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from sklearn import metrics as sk_metrics
-from src.metrics import accuracy, precision, recall, f1_score_metric, roc_auc
+from src.metrics import accuracy, precision, recall, f1_score, roc_auc
 # Assuming your functions are saved in src/metrics.py
 # from src.metrics import accuracy, precision, recall, f1_score_metric, roc_auc
 
@@ -44,7 +44,7 @@ def test_recall(test_data):
 
 def test_f1_score(test_data):
     y_true, y_pred, _ = test_data
-    custom_f1 = f1_score_metric(y_true, y_pred)
+    custom_f1 = f1_score(y_true, y_pred)
     sk_f1 = sk_metrics.f1_score(y_true, y_pred, zero_division=0)
     
     assert custom_f1 == pytest.approx(sk_f1), "F1 score metric failed to match sklearn."
