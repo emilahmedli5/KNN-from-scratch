@@ -4,62 +4,44 @@ import numpy as np
 def stratified_split(
     X: np.ndarray,
     y: np.ndarray,
-    test_size: float = 0.15,
-    val_size: float = 0.15,
-    random_state: int = 42
+    train_frac: float = 0.6,
+    val_frac: float = 0.2,
+    test_frac: float = 0.2,
+    seed: int = 42
 ):
-    """
-    Split dataset into train / validation / test
-    while keeping class distribution roughly the same.
-    """
-
-    rng = np.random.default_rng(random_state)
+    rng = np.random.default_rng(seed)
 
     classes = np.unique(y)
 
-    train_idx = []
-    val_idx = []
-    test_idx = []
+    train_idx, val_idx, test_idx = [], [], []
 
     for cls in classes:
-        # take indices of current class
         idx = np.where(y == cls)[0]
-
-        # shuffle them
-        rng.shuffle(idx)
+        rng.shuffle(idx)  # shuffle class samples
 
         n = len(idx)
 
-        n_test = int(np.round(n * test_size))
-        n_val = int(np.round(n * val_size))
+        n_test = int(n * test_frac)
+        n_val = int(n * val_frac)
 
-        test_part = idx[:n_test]
-        val_part = idx[n_test:n_test + n_val]
-        train_part = idx[n_test + n_val:]
-
-        test_idx.extend(test_part)
-        val_idx.extend(val_part)
-        train_idx.extend(train_part)
+        # split per class
+        test_idx.extend(idx[:n_test])
+        val_idx.extend(idx[n_test:n_test + n_val])
+        train_idx.extend(idx[n_test + n_val:])
 
     train_idx = np.array(train_idx)
     val_idx = np.array(val_idx)
     test_idx = np.array(test_idx)
 
-    # shuffle again so classes are mixed
+    # final shuffle so classes mix
     rng.shuffle(train_idx)
     rng.shuffle(val_idx)
     rng.shuffle(test_idx)
 
     return (
-        X[train_idx], y[train_idx],
-        X[val_idx], y[val_idx],
-        X[test_idx], y[test_idx]
+        X[train_idx], X[val_idx], X[test_idx],
+        y[train_idx], y[val_idx], y[test_idx]
     )
-
-
-
-
-import numpy as np
 
 
 def stratified_kfold(
@@ -68,42 +50,35 @@ def stratified_kfold(
     n_splits: int = 5,
     random_state: int = 42
 ):
-    """
-    Create stratified K-fold splits.
-
-    Returns:
-        [(X_train, y_train, X_val, y_val), ...]
-    """
-
     rng = np.random.default_rng(random_state)
 
     classes = np.unique(y)
-    class_splits = {c: [] for c in classes}
+
+    # store splits per class
+    per_class_splits = {c: [] for c in classes}
 
     for c in classes:
+        idx = np.where(y == c)[0]
+        rng.shuffle(idx)
 
-        indices = np.where(y == c)[0]
-        rng.shuffle(indices)
-
-        class_splits[c] = np.array_split(
-            indices,
-            n_splits
-        )
+        # split indices into k folds
+        per_class_splits[c] = np.array_split(idx, n_splits)
 
     folds = []
 
-    for fold in range(n_splits):
-
-        train_idx = []
-        val_idx = []
+    for i in range(n_splits):
+        train_idx, val_idx = [], []
 
         for c in classes:
+            parts = per_class_splits[c]
 
-            val_idx.extend(class_splits[c][fold])
+            # current fold = validation
+            val_idx.extend(parts[i])
 
-            for i in range(n_splits):
-                if i != fold:
-                    train_idx.extend(class_splits[c][i])
+            # others = train
+            for j in range(n_splits):
+                if j != i:
+                    train_idx.extend(parts[j])
 
         train_idx = np.array(train_idx)
         val_idx = np.array(val_idx)
@@ -113,10 +88,8 @@ def stratified_kfold(
 
         folds.append(
             (
-                X[train_idx],
-                y[train_idx],
-                X[val_idx],
-                y[val_idx]
+                X[train_idx], y[train_idx],
+                X[val_idx], y[val_idx]
             )
         )
 

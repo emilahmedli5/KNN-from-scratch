@@ -1,15 +1,14 @@
 import numpy as np
-from collections import Counter
 
 
 class KNN:
     def __init__(
         self,
-        k=5,
-        metric="euclidean",
-        q=2.0,
-        task="classification",
-        weights="uniform"
+        k: int = 5,
+        metric: str = "euclidean",
+        q: float = 2.0,
+        task: str = "classification",
+        weights: str = "uniform"
     ):
         self.k = k
         self.metric = metric
@@ -17,108 +16,98 @@ class KNN:
         self.task = task
         self.weights = weights
 
-    def fit(self, X, y):
+    def fit(self, X: np.ndarray, y: np.ndarray):
         self.X_train = np.asarray(X)
         self.y_train = np.asarray(y)
         return self
 
-    def _compute_distances(self, x):
+    def _compute_distances(self, X: np.ndarray) -> np.ndarray:
+        diff = X[:, np.newaxis, :] - self.X_train[np.newaxis, :, :]
+
         if self.metric == "euclidean":
-            return np.sqrt(np.sum((self.X_train - x) ** 2, axis=1))
+            return np.sqrt(np.sum(diff ** 2, axis=2))
 
-        if self.metric == "manhattan":
-            return np.sum(np.abs(self.X_train - x), axis=1)
+        elif self.metric == "manhattan":
+            return np.sum(np.abs(diff), axis=2)
 
-        if self.metric == "minkowski":
-            return np.sum(
-                np.abs(self.X_train - x) ** self.q,
-                axis=1
-            ) ** (1 / self.q)
+        elif self.metric == "minkowski":
+            return np.sum(np.abs(diff) ** self.q, axis=2) ** (1 / self.q)
 
         raise ValueError(f"Unknown metric: {self.metric}")
 
-    def _get_weights(self, distances):
+    def _get_weights(self, distances: np.ndarray) -> np.ndarray:
         if self.weights == "uniform":
-            return np.ones(len(distances))
+            return np.ones_like(distances)
 
-        # Avoid division by zero
-        return 1 / (distances + 1e-8)
+        return 1.0 / (distances + 1e-8)
 
-    def predict(self, X):
-        predictions = []
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        X = np.asarray(X)
 
-        for sample in X:
-            distances = self._compute_distances(sample)
+        distances = self._compute_distances(X)
 
-            nearest_idx = np.argsort(distances)[:self.k]
-            nearest_labels = self.y_train[nearest_idx]
-            nearest_distances = distances[nearest_idx]
+        neighbor_idx = np.argsort(distances, axis=1)[:, :self.k]
 
-            weights = self._get_weights(nearest_distances)
+        neighbor_labels = self.y_train[neighbor_idx]
 
-            if self.task == "classification":
+        neighbor_distances = distances[
+            np.arange(len(X))[:, np.newaxis],
+            neighbor_idx
+        ]
 
-                # Get all classes in sorted order
-                classes = np.sort(np.unique(self.y_train))
+        weights = self._get_weights(neighbor_distances)
 
-                # Store vote counts
-                votes = {c: 0 for c in classes}
+        if self.task == "classification":
+            classes = np.sort(np.unique(self.y_train))
 
-                for label, weight in zip(nearest_labels, weights):
-                    votes[label] += weight
+            votes = np.zeros((len(X), len(classes)))
 
-                # If there is a tie, smaller class wins
-                prediction = max(
-                    classes,
-                    key=lambda c: votes[c]
-                )
+            for i, cls in enumerate(classes):
+                votes[:, i] = (
+                    weights * (neighbor_labels == cls)
+                ).sum(axis=1)
 
-            elif self.task == "regression":
+            predicted_idx = np.argmax(votes, axis=1)
+            return classes[predicted_idx]
 
-                prediction = (
-                    np.dot(weights, nearest_labels)
-                    / np.sum(weights)
-                )
+        elif self.task == "regression":
+            weighted_sum = (weights * neighbor_labels).sum(axis=1)
+            total_weight = weights.sum(axis=1)
 
-            else:
-                raise ValueError(
-                    f"Unknown task: {self.task}"
-                )
+            return weighted_sum / total_weight
 
-            predictions.append(prediction)
+        raise ValueError(f"Unknown task: {self.task}")
 
-        return np.array(predictions)
-
-    def predict_proba(self, X):
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
         if self.task != "classification":
             raise ValueError(
                 "predict_proba is only available for classification tasks."
             )
 
-        classes = np.unique(self.y_train)
-        probabilities = []
+        X = np.asarray(X)
 
-        for sample in X:
-            distances = self._compute_distances(sample)
+        classes = np.sort(np.unique(self.y_train))
 
-            nearest_idx = np.argsort(distances)[:self.k]
-            nearest_labels = self.y_train[nearest_idx]
-            nearest_distances = distances[nearest_idx]
+        distances = self._compute_distances(X)
 
-            weights = self._get_weights(nearest_distances)
+        neighbor_idx = np.argsort(distances, axis=1)[:, :self.k]
 
-            prob_dict = {c: 0.0 for c in classes}
+        neighbor_labels = self.y_train[neighbor_idx]
 
-            for label, weight in zip(nearest_labels, weights):
-                prob_dict[label] += weight
+        neighbor_distances = distances[
+            np.arange(len(X))[:, np.newaxis],
+            neighbor_idx
+        ]
 
-            total_weight = sum(prob_dict.values())
+        weights = self._get_weights(neighbor_distances)
 
-            probs = [
-                prob_dict[c] / total_weight
-                for c in classes
-            ]
+        probabilities = np.zeros((len(X), len(classes)))
 
-            probabilities.append(probs)
+        for i, cls in enumerate(classes):
+            probabilities[:, i] = (
+                weights * (neighbor_labels == cls)
+            ).sum(axis=1)
 
-        return np.array(probabilities)
+        probabilities /= probabilities.sum(axis=1, keepdims=True)
+
+        return probabilities
